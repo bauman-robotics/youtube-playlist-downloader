@@ -1,0 +1,23 @@
+
+
+# python3 -m venv venv
+# source venv/bin/activate
+# pip install -r requirements.txt
+
+# python -v
+# Python 3.12.3 (main, Jan 17 2025, 18:03:48)
+
+# python3.12 -m venv venv
+# pip install --upgrade pip setuptools wheel
+
+# sudo apt install portaudio19-dev
+
+# pip list
+# =====
+# pip freeze > requirements_1.txt
+# Этот метод создаст файл со всеми установленными пакетами и их точными версиями.
+# ===
+
+
+
+yt-dlp>=2024.12.0

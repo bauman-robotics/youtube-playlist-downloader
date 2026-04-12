@@ -1,0 +1,19 @@
+```gitignore
+# Скачанные видео
+downloads/
+
+# Файлы со ссылками (чтобы не светить реальные плейлисты)
+playlists.txt
+
+# Логи
+*.log
+
+# Настройки окружения
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+download_log.txt
+
+temp/
