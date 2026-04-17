@@ -17,3 +17,5 @@ __pycache__/
 download_log.txt
 
 temp/
+
+run_log.txt
