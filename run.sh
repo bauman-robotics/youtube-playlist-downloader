@@ -44,7 +44,8 @@ fi
 
 # Запуск основного скрипта
 log "🚀 Запуск YouTube Downloader..."
-python3 05_youtube_downloader.py
+#python3 05_youtube_downloader.py
+python3 06_youtube_downloader.py
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -eq 0 ]; then

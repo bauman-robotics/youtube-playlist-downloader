@@ -2,13 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-YouTube Downloader for Playlists, Single Videos, and Channels
+YouTube Downloader for Playlists, Single Videos, Channels, and Shorts
 Поддерживает:
 - # в начале строки -> пропуск
 - [audio] в строке -> скачивание только аудио (MP3, 192kbps)
 - [top=N] для канала -> N самых популярных видео
 - [new=N] для канала -> N самых новых видео
 - Плейлисты и отдельные видео
+- Шортсы (YouTube Shorts)
 - Рандомные паузы между видео
 """
 
@@ -33,6 +34,8 @@ PAUSE_BETWEEN_VIDEOS_MIN = 2      # секунд между видео (мин)
 PAUSE_BETWEEN_VIDEOS_MAX = 5      # секунд между видео (макс)
 PAUSE_BETWEEN_PLAYLISTS_MIN = 3   # секунд между плейлистами/каналами (мин)
 PAUSE_BETWEEN_PLAYLISTS_MAX = 8   # секунд между плейлистами/каналами (макс)
+PAUSE_BETWEEN_SINGLE_MIN = 3      # секунд между одиночными видео (мин)
+PAUSE_BETWEEN_SINGLE_MAX = 7      # секунд между одиночными видео (макс)
 
 # ========== НАСТРОЙКИ АУДИО ==========
 AUDIO_FORMAT = "mp3"
@@ -50,7 +53,7 @@ def log_message(message, console=True):
 
 def is_playlist_url(url):
     """Определяет, является ли ссылка плейлистом"""
-    return "list=" in url or "/playlist?" in url
+    return "list=" in url and "shorts" not in url or "/playlist?" in url
 
 def is_channel_url(url):
     """Определяет, является ли ссылка каналом"""
@@ -63,6 +66,10 @@ def is_channel_url(url):
         if re.search(pattern, url):
             return True
     return False
+
+def is_shorts_url(url):
+    """Определяет, является ли ссылка шортсом"""
+    return re.search(r'youtube\.com/shorts/[a-zA-Z0-9_-]+', url) is not None
 
 def has_audio_marker(line):
     """Проверяет, есть ли в строке маркер [audio]"""
@@ -88,12 +95,14 @@ def extract_url_and_markers_from_line(line):
     # Удаляем маркеры из строки для поиска ссылки
     clean_line = re.sub(r'\[audio\]|\[top=\d+\]|\[new=\d+\]', '', line, flags=re.IGNORECASE)
     
-    # Ищем ссылку
-    url_pattern = re.compile(r'https?://(?:www\.)?youtube\.com/(?:watch\?v=|playlist\?list=|@[\w\-]+|c/[\w\-]+|user/[\w\-]+)[^\s]+')
+    # Ищем ссылку (обновленный паттерн для поддержки шортсов)
+    url_pattern = re.compile(r'https?://(?:www\.)?youtube\.com/(?:watch\?v=|playlist\?list=|@[\w\-]+|c/[\w\-]+|user/[\w\-]+|shorts/[a-zA-Z0-9_-]+)[^\s]*')
     match = url_pattern.search(clean_line)
     
     if match:
         url = match.group(0)
+        # Очищаем URL от лишних параметров в конце
+        url = re.sub(r'[&?]feature=share.*$', '', url)
         audio_mode = has_audio_marker(line)
         top_count, new_count = extract_channel_markers(line)
         return url, audio_mode, top_count, new_count
@@ -378,6 +387,11 @@ def download_playlist(playlist_url, channel, playlist_title, audio_mode):
             success, stats = download_single_video(video_url, download_path, title, audio_mode)
             if not success:
                 log_message(f"    ⚠ Ошибка при скачивании", console=True)
+            
+            # Пауза между видео в плейлисте
+            if idx < total:
+                pause = random.randint(PAUSE_BETWEEN_VIDEOS_MIN, PAUSE_BETWEEN_VIDEOS_MAX)
+                time.sleep(pause)
         
         log_message(f"  ✓ Плейлист завершён")
         return True
@@ -421,6 +435,11 @@ def download_channel_videos(channel_url, channel_name, suffix, audio_mode, top_c
         success, stats = download_single_video(video_url, download_path, title, audio_mode)
         if not success:
             log_message(f"    ⚠ Ошибка при скачивании", console=True)
+        
+        # Пауза между видео
+        if idx < len(videos):
+            pause = random.randint(PAUSE_BETWEEN_VIDEOS_MIN, PAUSE_BETWEEN_VIDEOS_MAX)
+            time.sleep(pause)
     
     log_message(f"  ✓ Канал обработан")
     return True
@@ -440,19 +459,30 @@ def get_channel_name(channel_url):
     return "UnknownChannel"
 
 def get_single_metadata(video_url):
-    """Получает название канала и названия видео для одиночной ссылки"""
+    """Получает название канала и названия видео для одиночной ссылки (включая шортсы)"""
     try:
+        original_url = video_url
+        
+        # Для шортсов преобразуем URL в обычный watch URL
+        if is_shorts_url(video_url):
+            # Извлекаем ID шортса
+            shorts_match = re.search(r'shorts/([a-zA-Z0-9_-]+)', video_url)
+            if shorts_match:
+                shorts_id = shorts_match.group(1)
+                video_url = f"https://www.youtube.com/watch?v={shorts_id}"
+                log_message(f"  → Преобразовано в обычное видео для скачивания", console=True)
+        
         cmd = [YTDLP_PATH, "-J", "--ignore-errors", video_url]
         result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
         if result.returncode != 0:
-            return None, None
+            return None, None, False
         data = json.loads(result.stdout)
         
         channel = data.get("channel", data.get("uploader", "UnknownChannel"))
         title = data.get("title", "UnknownVideo")
         
         # Проверяем, не является ли ссылка плейлистом
-        if data.get("playlist_count"):
+        if data.get("playlist_count") and not is_shorts_url(original_url):
             playlist_title = data.get("playlist_title", data.get("title", None))
             if playlist_title:
                 return channel, playlist_title, True
@@ -461,13 +491,14 @@ def get_single_metadata(video_url):
             return re.sub(r'[<>:"/\\|?*]', '_', name).strip()
         
         return sanitize(channel), sanitize(title), False
-    except Exception:
+    except Exception as e:
+        log_message(f"  Ошибка получения метаданных: {e}")
         return None, None, False
 
 def main():
     log_message("=" * 70)
     log_message("🚀 ЗАПУСК СКРИПТА")
-    log_message("  Поддерживает: # (комментарий), [audio], [top=N], [new=N]")
+    log_message("  Поддерживает: # (комментарий), [audio], [top=N], [new=N], шортсы")
     
     items = extract_urls_from_file(INPUT_FILE)
     
@@ -487,6 +518,9 @@ def main():
         elif is_playlist_url(url):
             mode_type = f"🎵 [audio]" if audio_mode else "🎬 видео"
             log_message(f"   {i}. {mode_type} | 📂 плейлист | {url[:60]}...")
+        elif is_shorts_url(url):
+            mode_type = f"🎵 [audio]" if audio_mode else "🎬 видео"
+            log_message(f"   {i}. {mode_type} | 📱 SHORTS | {url[:60]}...")
         else:
             mode_type = f"🎵 [audio]" if audio_mode else "🎬 видео"
             log_message(f"   {i}. {mode_type} | 🎬 видео | {url[:60]}...")
@@ -495,7 +529,35 @@ def main():
         log_message(f"\n--- [{idx}/{len(items)}] Обработка ---")
         log_message(f"URL: {url[:80]}...")
         
-        if is_channel_url(url):
+        # Специальная обработка для шортсов
+        if is_shorts_url(url):
+            log_message(f"  → Обнаружен YouTube Shorts")
+            channel, title, is_playlist = get_single_metadata(url)
+            
+            if channel and title:
+                download_path = Path(DOWNLOAD_ROOT) / channel
+                file_ext = "mp3" if audio_mode else "mp4"
+                video_path = download_path / f"{title}.{file_ext}"
+                
+                if video_path.exists():
+                    log_message(f"  ℹ Уже существует, пропускаем")
+                else:
+                    log_message(f"  📁 {channel}")
+                    mode_str = "🎵 АУДИО (MP3)" if audio_mode else "🎬 ВИДЕО (MP4)"
+                    log_message(f"  {mode_str}")
+                    log_message(f"  📱 Shorts: {title[:60]}")
+                    success, stats = download_single_video(url, download_path, title, audio_mode)
+                    if success:
+                        log_message(f"      ✅ {stats}", console=False)
+                
+                if idx < len(items):
+                    pause = random.randint(PAUSE_BETWEEN_SINGLE_MIN, PAUSE_BETWEEN_SINGLE_MAX)
+                    log_message(f"  ⏸️  Пауза {pause} сек перед следующим...")
+                    time.sleep(pause)
+            else:
+                log_message(f"  ✗ Не удалось получить данные для шортса")
+        
+        elif is_channel_url(url):
             # Ссылка на канал
             channel_name = get_channel_name(url)
             if not channel_name:
@@ -540,7 +602,7 @@ def main():
             else:
                 log_message(f"  ✗ Не удалось получить данные")
         else:
-            # Отдельное видео
+            # Отдельное видео (обычное)
             channel, title, is_playlist = get_single_metadata(url)
             
             if channel and title:
@@ -565,7 +627,7 @@ def main():
                         mode_str = "🎵 АУДИО (MP3)" if audio_mode else "🎬 ВИДЕО (MP4)"
                         log_message(f"  {mode_str}")
                         log_message(f"  🎬 {title[:60]}")
-                        success, stats =download_single_video(url, download_path, title, audio_mode)
+                        success, stats = download_single_video(url, download_path, title, audio_mode)
                         if success:
                             log_message(f"      ✅ {stats}", console=False)
                 
