@@ -286,7 +286,6 @@ def download_single_video(video_url, download_path, filename, audio_mode, video_
                     downloaded_mb = downloaded / 1024 / 1024
                     total_mb = total / 1024 / 1024
                     
-                    # Сохраняем финальные значения
                     final_size_mb = total_mb
                     final_speed_mb = speed_mb
                     
@@ -303,22 +302,27 @@ def download_single_video(video_url, download_path, filename, audio_mode, video_
             print("    ✅ Готово", flush=True)
     
     if audio_mode:
+        # ✅ ИСПРАВЛЕННЫЕ опции для аудио
         output_template = str(download_path / f"{filename}.%(ext)s")
         ydl_opts = {
-            'ignoreerrors': True,
-            'nooverwrites': True,
-            'continuedl': True,
-            'retries': 3,
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': AUDIO_FORMAT,  # 'mp3'
+                'preferredquality': AUDIO_QUALITY,  # '192'
+            }],
             'outtmpl': output_template,
             'progress_hooks': [progress_hook],
             'quiet': True,
             'no_warnings': True,
-            'logger': None,  # отключаем логгер
-            'extractaudio': True,
-            'audioformat': AUDIO_FORMAT,
-            'audioquality': AUDIO_QUALITY,
+            'logger': None,
+            'ignoreerrors': True,
+            'nooverwrites': True,
+            'continuedl': True,
+            'retries': 3,
         }
     else:
+        # Видеорежим (без изменений)
         output_template = str(download_path / f"{filename}.%(ext)s")
         ydl_opts = {
             'ignoreerrors': True,
@@ -329,7 +333,7 @@ def download_single_video(video_url, download_path, filename, audio_mode, video_
             'progress_hooks': [progress_hook],
             'quiet': True,
             'no_warnings': True,
-            'logger': None,  # отключаем логгер
+            'logger': None,
             'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
             'merge_output_format': 'mp4',
         }

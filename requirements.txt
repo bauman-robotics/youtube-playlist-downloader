@@ -1,4 +1,7 @@
 
+# python3 --version
+# Python 3.14.4
+# sudo apt install python3.14-venv
 
 # python3 -m venv venv
 # source venv/bin/activate
