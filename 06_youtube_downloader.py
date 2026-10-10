@@ -27,7 +27,7 @@ from urllib.parse import urlparse, parse_qs, urlunparse
 INPUT_FILE = "playlists.txt"
 LOG_FILE = "download_log.txt"
 YTDLP_PATH = "yt-dlp"
-DOWNLOAD_ROOT = "/home/ypc/ADATA_1TB/Video_Youtube"
+DOWNLOAD_ROOT = "/run/media/ypc/ADATA_1TB/Video_Youtube"
 
 # ========== НАСТРОЙКИ ПАУЗ (рандомные) ==========
 PAUSE_BETWEEN_VIDEOS_MIN = 2      # секунд между видео (мин)
