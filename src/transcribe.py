@@ -355,6 +355,8 @@ def main():
     )
     parser.add_argument('folder', nargs='?', default='.',
                        help='Путь к папке с аудиофайлами (по умолчанию: текущая папка)')
+    parser.add_argument('--file', default=None,
+                       help='Обработать только указанный файл')
     parser.add_argument('--model', default='vosk-model-small-ru-0.22',
                        help='Путь к модели Vosk (по умолчанию: vosk-model-small-ru-0.22)')
     parser.add_argument('--no-recursive', action='store_true',
@@ -396,7 +398,28 @@ def main():
     
     print(f"✅ Модель загружена")
     
-    # Запускаем обработку
+    # Если указан конкретный файл — обрабатываем только его, без поиска по папке
+    if args.file:
+        file_path = Path(args.file)
+        if not file_path.exists():
+            print(f"❌ Файл не найден: {args.file}")
+            sys.exit(1)
+        
+        text_path = file_path.with_suffix('.txt')
+        if text_path.exists() and not args.force:
+            print(f"⏭️ Пропущено (файл уже существует): {text_path}")
+            print(f"Используйте --force для перезаписи")
+            return
+        
+        result = transcriber.transcribe_file(file_path, text_path)
+        if result:
+            print(f"\n✨ Готово! Транскрипция сохранена в .txt файл рядом с аудио.")
+        else:
+            print(f"\n⚠️ Не удалось обработать файл: {args.file}")
+            sys.exit(1)
+        return
+    
+    # Запускаем обработку папки
     stats = transcriber.transcribe_folder(
         args.folder,
         recursive=not args.no_recursive,

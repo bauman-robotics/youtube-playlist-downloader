@@ -22,7 +22,7 @@ import sys
 import threading
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
 
 try:
     import yaml
@@ -54,6 +54,7 @@ class YtdlApp(tk.Tk):
         self.prompts_file = self.project_root / "prompts.yaml"
         self.prompts = self._load_prompts()
         self.llm_var = tk.StringVar(value="Не обрабатывать")
+        self.selected_file = None
 
         # --- тёмная тема ---
         self._setup_dark_theme()
@@ -160,6 +161,11 @@ class YtdlApp(tk.Tk):
         self.url_text.configure(yscrollcommand=url_scroll.set)
         self._add_context_menu(self.url_text)
 
+        self.choose_file_btn = ttk.Button(
+            top, text="Выбрать файл", command=self._choose_file
+        )
+        self.choose_file_btn.pack(side="left", padx=(6, 0))
+
         # ===== Панель опций: аудио + количество =====
         opts = ttk.Frame(self)
         opts.pack(fill="x", **pad)
@@ -237,6 +243,39 @@ class YtdlApp(tk.Tk):
         # стартовое сообщение
         self._append_log(f"ytdl.py: {self.ytdl_script}\n")
         self._append_log(f"Папка загрузок: {self.download_dir}\n")
+
+        # авто-логика зависимостей чекбоксов и Combobox
+        self._setup_interlock()
+
+    # ------------------------------------------------------------------
+    # Авто-логика зависимостей
+    # ------------------------------------------------------------------
+    def _setup_interlock(self):
+        """Регистрирует обработчики изменения переменных."""
+        self.transcribe_var.trace_add("write", self._on_transcribe_change)
+        self.llm_var.trace_add("write", self._on_llm_change)
+        self.audio_var.trace_add("write", self._on_audio_change)
+
+    def _on_transcribe_change(self, *_args):
+        """Транскрибация включена → аудио тоже нужно."""
+        if self.transcribe_var.get() and not self.audio_var.get():
+            self.audio_var.set(True)
+
+    def _on_llm_change(self, *_args):
+        """Выбран промпт LLM → нужны аудио и транскрибация."""
+        if self.llm_var.get() != "Не обрабатывать":
+            if not self.audio_var.get():
+                self.audio_var.set(True)
+            if not self.transcribe_var.get():
+                self.transcribe_var.set(True)
+
+    def _on_audio_change(self, *_args):
+        """Аудио выключено → выключаем транскрибацию и LLM."""
+        if not self.audio_var.get():
+            if self.transcribe_var.get():
+                self.transcribe_var.set(False)
+            if self.llm_var.get() != "Не обрабатывать":
+                self.llm_var.set("Не обрабатывать")
 
     # ------------------------------------------------------------------
     # Вспомогательные методы
@@ -369,6 +408,51 @@ class YtdlApp(tk.Tk):
         """Запускает ytdl.py в отдельном процессе"""
         if self.proc is not None and self.proc.poll() is None:
             messagebox.showinfo("Внимание", "Процесс уже запущен")
+            return
+
+        # --- режим выбранного файла: без ytdl ---
+        if self.selected_file:
+            if not self.transcribe_var.get():
+                messagebox.showwarning("Внимание", "Выберите Транскрибацию")
+                return
+
+            self._transcribe_requested = True
+            self.stage = "transcribe"
+            model = self.project_root / "models" / "vosk-model-small-ru-0.22"
+            py = self._read_transcribe_python()
+            cmd = [
+                py,
+                "-u",
+                str(self.script_dir / "transcribe.py"),
+                "--file",
+                str(self.selected_file),
+                "--model",
+                str(model),
+            ]
+
+            self._append_log("\n" + "-" * 60 + "\n")
+            self._append_log("$ " + " ".join(cmd) + "\n")
+
+            try:
+                self.proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    cwd=str(self.project_root),
+                )
+            except Exception as exc:
+                self.proc = None
+                self._append_log(f"[GUI] Ошибка запуска: {exc}\n")
+                messagebox.showerror(
+                    "Ошибка", f"Не удалось запустить transcribe.py:\n{exc}"
+                )
+                return
+
+            self._set_running(True)
+            self.reader_thread = threading.Thread(target=self._reader, daemon=True)
+            self.reader_thread.start()
             return
 
         raw = self.url_text.get("1.0", "end").strip()
@@ -529,18 +613,24 @@ class YtdlApp(tk.Tk):
         """Команда запуска punctuate.py"""
         script = self.script_dir / "punctuate.py"
         py = self._read_transcribe_python()
-        return [py, "-u", str(script), "-d", str(self.download_dir)]
+        target_dir = (
+            self.selected_file.parent if self.selected_file else self.download_dir
+        )
+        return [py, "-u", str(script), "-d", str(target_dir)]
 
     def _build_summarize_cmd(self, prompt_name):
         """Команда запуска summarize.py с выбранным промптом"""
         script = self.script_dir / "summarize.py"
         py = self._read_transcribe_python()
+        target_dir = (
+            self.selected_file.parent if self.selected_file else self.download_dir
+        )
         return [
             py,
             "-u",
             str(script),
             "-d",
-            str(self.download_dir),
+            str(target_dir),
             "--prompt",
             prompt_name,
         ]
@@ -562,6 +652,21 @@ class YtdlApp(tk.Tk):
                 self._append_log("\n[GUI] Отправлен terminate процессу\n")
             except Exception as exc:
                 self._append_log(f"\n[GUI] Не удалось завершить процесс: {exc}\n")
+
+    def _choose_file(self):
+        """Открывает диалог выбора файла и сохраняет путь в self.selected_file"""
+        path = filedialog.askopenfilename(
+            title="Выбрать файл",
+            filetypes=[
+                ("Медиафайлы", "*.mp3 *.wav *.m4a *.flac *.mp4"),
+                ("Все файлы", "*.*"),
+            ],
+        )
+        if path:
+            self.selected_file = Path(path)
+            self._append_log(f"Выбран файл: {self.selected_file}\n")
+        else:
+            self.selected_file = None
 
     def _open_folder(self):
         """Открывает папку загрузок в файловом менеджере"""
