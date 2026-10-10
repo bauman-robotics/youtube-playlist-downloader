@@ -48,6 +48,28 @@ AUDIO_FORMAT = "mp3"
 AUDIO_QUALITY = "192"  # kbps
 # =====================================
 
+# Загрузка конфигурации из config.yaml (если доступен)
+CONFIG_FILE = "config.yaml"
+CONFIG = {}
+try:
+    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if ":" in line:
+                key, value = line.split(":", 1)
+                CONFIG[key.strip()] = value.strip().strip('"').strip("'")
+    # Переопределяем константы из конфига, если ключи присутствуют
+    if "download_root" in CONFIG:
+        DOWNLOAD_ROOT = CONFIG["download_root"]
+    if "input_file" in CONFIG:
+        INPUT_FILE = CONFIG["input_file"]
+    if "log_file" in CONFIG:
+        LOG_FILE = CONFIG["log_file"]
+except Exception:
+    pass  # используем значения по умолчанию
+
 def log_message(message, console=True):
     """Запись в лог и опционально в консоль"""
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -640,6 +662,10 @@ def main():
     if args.no_cookies:
         global COOKIES_FILE
         COOKIES_FILE = None
+
+    if args.input:
+        global INPUT_FILE
+        INPUT_FILE = args.input
 
     log_message("=" * 70)
     log_message("🚀 ЗАПУСК СКРИПТА")

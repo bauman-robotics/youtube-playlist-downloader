@@ -1,0 +1,3 @@
+download_root: ./Video_Youtube
+input_file: playlists.txt
+log_file: download_log.txt
