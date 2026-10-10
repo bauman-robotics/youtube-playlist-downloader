@@ -28,3 +28,7 @@ Video_Youtube/
 gui_input.txt
 __pycache__/
 *.pyc
+
+# Vosk model
+vosk-model-*/
+vosk-model-*.zip

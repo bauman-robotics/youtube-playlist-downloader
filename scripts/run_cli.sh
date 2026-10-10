@@ -13,4 +13,5 @@ elif [ -f ".venv/bin/activate" ]; then
     source .venv/bin/activate
 fi
 
-exec python gui.py "$@"
+cd "$(dirname "$(readlink -f "$0")")/.." || exit 1
+exec python src/ytdl.py "$@"

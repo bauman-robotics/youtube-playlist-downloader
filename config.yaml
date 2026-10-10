@@ -1,3 +1,4 @@
-download_root: ./Video_Youtube
-input_file: playlists.txt
-log_file: download_log.txt
+download_root: ./data/Video_Youtube
+input_file: ./data/playlists.txt
+log_file: ./download_log.txt
+model_path: ./models/vosk-model-small-ru-0.22

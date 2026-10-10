@@ -27,13 +27,16 @@ import os
 import argparse
 
 # ========== НАСТРОЙКИ ==========
-INPUT_FILE = "playlists.txt"
-LOG_FILE = "download_log.txt"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+
+INPUT_FILE = str(DATA_DIR / "playlists.txt")
+LOG_FILE = str(PROJECT_ROOT / "download_log.txt")
 YTDLP_PATH = "yt-dlp"
 DOWNLOAD_ROOT = "/run/media/ypc/ADATA_1TB/Video_Youtube"
 
 # Файл с cookies (экспортируйте из браузера)
-COOKIES_FILE = "cookies.txt"  # Положите файл cookies.txt в папку со скриптом
+COOKIES_FILE = str(DATA_DIR / "cookies.txt")  # в data/
 
 # ========== НАСТРОЙКИ ПАУЗ (рандомные) ==========
 PAUSE_BETWEEN_VIDEOS_MIN = 2      # секунд между видео (мин)
@@ -49,7 +52,7 @@ AUDIO_QUALITY = "192"  # kbps
 # =====================================
 
 # Загрузка конфигурации из config.yaml (если доступен)
-CONFIG_FILE = "config.yaml"
+CONFIG_FILE = str(PROJECT_ROOT / "config.yaml")
 CONFIG = {}
 try:
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:

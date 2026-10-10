@@ -40,8 +40,10 @@ class YtdlApp(tk.Tk):
         self.reader_thread = None
         self.queue = queue.Queue()
         self.script_dir = Path(__file__).resolve().parent
+        self.project_root = self.script_dir.parent
         self.ytdl_script = self.script_dir / "ytdl.py"
-        self.input_file = self.script_dir / "gui_input.txt"
+        self.input_file = self.project_root / "data" / "gui_input.txt"
+        self.config_file = self.project_root / "config.yaml"
         self.download_dir = self._read_download_root()
 
         # --- тёмная тема ---
@@ -215,7 +217,7 @@ class YtdlApp(tk.Tk):
     def _read_download_root(self):
         """Пытается прочитать download_root из config.yaml"""
         default = "/run/media/ypc/ADATA_1TB/Video_Youtube"
-        cfg = self.script_dir / "config.yaml"
+        cfg = self.config_file
         try:
             for line in cfg.read_text(encoding="utf-8").splitlines():
                 line = line.strip()
@@ -305,7 +307,7 @@ class YtdlApp(tk.Tk):
             return
 
         # Базовая команда — запуск ytdl.py текущим интерпретатором
-        cmd = [sys.executable, "-u", "ytdl.py"]
+        cmd = [sys.executable, "-u", str(self.ytdl_script)]
         cmd += ["--input", str(self.input_file)]
 
         self._append_log("\n" + "-" * 60 + "\n")
@@ -318,7 +320,7 @@ class YtdlApp(tk.Tk):
                 stderr=subprocess.STDOUT,
                 text=True,
                 bufsize=1,
-                cwd=str(self.script_dir),
+                cwd=str(self.project_root),
             )
         except Exception as exc:
             self.proc = None
