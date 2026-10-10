@@ -32,3 +32,4 @@ __pycache__/
 # Vosk model
 vosk-model-*/
 vosk-model-*.zip
+.ai-out/

@@ -38,6 +38,7 @@ class YtdlApp(tk.Tk):
         # --- состояние ---
         self.proc = None
         self.reader_thread = None
+        self.stage = None  # текущий этап: "ytdl" | "transcribe" | "punctuate"
         self.queue = queue.Queue()
         self.script_dir = Path(__file__).resolve().parent
         self.project_root = self.script_dir.parent
@@ -161,6 +162,12 @@ class YtdlApp(tk.Tk):
         )
         self.audio_check.pack(side="left")
 
+        self.transcribe_var = tk.BooleanVar(value=False)
+        self.transcribe_check = ttk.Checkbutton(
+            opts, text="Транскрибация", variable=self.transcribe_var
+        )
+        self.transcribe_check.pack(side="left", padx=(20, 0))
+
         ttk.Label(opts, text="количество:").pack(side="left", padx=(20, 4))
         self.count_var = tk.IntVar(value=0)
         self.count_spin = ttk.Spinbox(
@@ -214,6 +221,21 @@ class YtdlApp(tk.Tk):
     # ------------------------------------------------------------------
     # Вспомогательные методы
     # ------------------------------------------------------------------
+    def _read_transcribe_python(self):
+        """Читает путь к python для транскрибации из config.yaml.
+        По умолчанию — sys.executable."""
+        default = sys.executable
+        try:
+            for line in self.config_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("transcribe_python:"):
+                    value = line.split(":", 1)[1].strip().strip('"').strip("'")
+                    if value:
+                        return value
+        except Exception:
+            pass
+        return default
+
     def _read_download_root(self):
         """Пытается прочитать download_root из config.yaml"""
         default = "/run/media/ypc/ADATA_1TB/Video_Youtube"
@@ -300,6 +322,9 @@ class YtdlApp(tk.Tk):
         except Exception:
             count = 0
 
+        self._transcribe_requested = bool(self.transcribe_var.get())
+        self.stage = "ytdl"  # текущий этап
+
         try:
             self._build_input_file(audio, count)
         except Exception as exc:
@@ -368,7 +393,69 @@ class YtdlApp(tk.Tk):
         if self.proc is not None:
             rc = self.proc.poll()
         self._append_log(f"\n[GUI] Процесс завершён (код: {rc})\n")
+
+        # диагностика
+        self._append_log(
+            f"[GUI] stage={self.stage}, rc={rc}, "
+            f"transcribe={self._transcribe_requested}\n"
+        )
+
+        # после успешного скачивания запускаем транскрибацию
+        if self.stage == "ytdl" and rc == 0 and self._transcribe_requested:
+            self._append_log("[GUI] Запускаю транскрибацию...\n")
+            if self._launch_stage(self._build_transcribe_cmd(), "transcribe"):
+                return
+
+        # после успешной транскрибации запускаем пунктуацию
+        if self.stage == "transcribe" and rc == 0:
+            if self._launch_stage(self._build_punctuate_cmd(), "punctuate"):
+                return
+
+        self.stage = None
         self._set_running(False)
+
+    def _launch_stage(self, cmd, stage):
+        """Запускает вспомогательный процесс (transcribe/punctuate)"""
+        self._append_log("\n" + "-" * 60 + "\n")
+        self._append_log("$ " + " ".join(cmd) + "\n")
+        try:
+            self.proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                cwd=str(self.project_root),
+            )
+        except Exception as exc:
+            self.proc = None
+            self._append_log(f"[GUI] Ошибка запуска: {exc}\n")
+            return False
+        self.stage = stage
+        self._set_running(True)
+        self.reader_thread = threading.Thread(target=self._reader, daemon=True)
+        self.reader_thread.start()
+        return True
+
+    def _build_transcribe_cmd(self):
+        """Команда запуска transcribe.py"""
+        script = self.script_dir / "transcribe.py"
+        model = self.project_root / "models" / "vosk-model-small-ru-0.22"
+        py = self._read_transcribe_python()
+        return [
+            py,
+            "-u",
+            str(script),
+            "--model",
+            str(model),
+            str(self.download_dir),
+        ]
+
+    def _build_punctuate_cmd(self):
+        """Команда запуска punctuate.py"""
+        script = self.script_dir / "punctuate.py"
+        py = self._read_transcribe_python()
+        return [py, "-u", str(script), "-d", str(self.download_dir)]
 
     def _set_running(self, running):
         """Переключает состояние элементов управления"""
