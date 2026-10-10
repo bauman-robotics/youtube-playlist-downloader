@@ -23,3 +23,8 @@ run_log.txt
 01_____________________Video_Youtube
 
 cookies.txt
+# ai-coder / GUI
+Video_Youtube/
+gui_input.txt
+__pycache__/
+*.pyc

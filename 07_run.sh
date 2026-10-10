@@ -371,9 +371,9 @@ EOF
     local start_time=$(date +%s)
     
     if $VERBOSE; then
-        python3 07_youtube_downloader.py 2>&1 | tee -a "$LOG_FILE"
+        python3 ytdl.py 2>&1 | tee -a "$LOG_FILE"
     else
-        python3 07_youtube_downloader.py 2>&1 | tee -a "$LOG_FILE"
+        python3 ytdl.py 2>&1 | tee -a "$LOG_FILE"
     fi
     
     local exit_code=$?
