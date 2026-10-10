@@ -1,202 +1,267 @@
 # YouTube Playlist Downloader
 
-Скрипт для скачивания плейлистов, отдельных видео и видео с каналов YouTube с сохранением структуры папок для офлайн-просмотра.
+Скачивание плейлистов, видео и каналов YouTube с автоматической
+транскрибацией, пунктуацией и LLM-обработкой. Графический интерфейс
+и CLI, всё в одном проекте.
 
 ## Возможности
 
 - 🎬 Скачивание плейлистов YouTube
-- 🎵 Режим **только аудио** (MP3, 192 kbps)
+- 🎵 Режим только аудио (MP3, 192 kbps)
 - 📺 Скачивание топ-N или новых N видео с канала
-- 📁 Автоматическая структура папок: `Канал / Плейлист / видео`
-- ⏱️ Настраиваемые рандомные паузы между видео
+- 📁 Автоматическая структура папок: Канал / Плейлист / видео
+- ⏱️ Настраиваемые случайные паузы между видео
 - 📝 Логирование всех действий с датами
 - 🔄 Пропуск уже скачанных видео
-- 📄 Поддержка комментариев в файле со ссылками
+- 📄 Поддержка комментариев и маркеров в playlists.txt
+- 🎤 Транскрибация аудио через Vosk
+- ✍️ Пунктуация через punctuators
+- 🤖 LLM-обработка транскрипций через DeepSeek
+- 🖥️ Графический интерфейс (Tkinter)
+- ⌨️ CLI для скриптов и автоматизации
 
 ## Графический интерфейс
 
-GUI-приложение объединяет весь пайплайн обработки видео в одном окне: позволяет выбрать источник, запустить скачивание и сразу получить результат обработки без ручного вызова отдельных скриптов. Интерфейс построен на тёмной теме и рассчитан на работу «в один клик» — от загрузки файла до готового саммари.
-
 ![GUI](docs/images/gui.png)
 
-### Возможности
+GUI объединяет весь пайплайн обработки в одном окне: от ссылки
+на YouTube (или выбора уже скачанного файла) до готового саммари.
+Тёмная тема, контекстное меню, авто-логика чекбоксов.
 
-- Один клик → скачивание → транскрибация → пунктуация → саммари.
-- Чекбоксы: «аудио», «Транскрибация».
-- Combobox: выбор промпта (`summary`, `summary_short`, `structured`, `translate_en`) из `prompts.yaml`.
-- Тёмная тема, контекстное меню (копировать/вставить/выделить всё).
+### Режимы работы
 
-### Запуск
+| Режим | Что выполняется |
+|---|---|
+| Ссылка YouTube | ytdl → transcribe → punctuate → summarize |
+| Файл из скачанных | transcribe → punctuate → summarize |
+
+### Авто-логика чекбоксов
+
+- Транскрибация → авто включается «Аудио».
+- LLM-промпт (кроме «Не обрабатывать») → авто включаются
+  «Аудио» и «Транскрибация».
+- Снятие «Аудио» → снимает «Транскрибацию» и сбрасывает LLM.
+
+### Элементы UI
+
+- Поле для ссылок (несколько строк = плейлист).
+- Кнопка «Выбрать файл» — обработка уже скачанного файла.
+- Чекбокс «Аудио» — MP3 вместо MP4.
+- Чекбокс «Транскрибация» — Vosk + пунктуация.
+- Combobox «Обработка LLM» — выбор промпта.
+- Кнопки Запустить / Стоп / Открыть папку.
+- Text + Scrollbar — лог.
+- Тёмная тема, контекстное меню.
+
+### Запуск GUI
 
 ```bash
 ./run.sh
 ```
 
-### Зависимости
+## Быстрый старт
 
-Устанавливаются из `requirements.txt` (в том числе `pyyaml`, `vosk`, `punctuators`):
+### 1. Клонировать
 
 ```bash
+git clone git@github.com:bauman-robotics/youtube-playlist-downloader.git
+cd youtube-playlist-downloader
+```
+
+### 2. Виртуальное окружение и зависимости
+
+```text
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### API-ключ DeepSeek
+Для транскрибации (Vosk, punctuators) — либо в этот же venv, либо
+в отдельный (путь к python — в config.yaml, ключ transcribe_python).
 
-Ключ для доступа к DeepSeek задаётся в файле `secret_conf.yaml` (см. пример `secret_conf.example.yaml`).
+### 3. Настроить
 
-## Установка
+**config.yaml** — пути:
 
-### 1. Установите yt-dlp
+```yaml
+download_root: ./data/Video_Youtube
+input_file: ./data/playlists.txt
+log_file: ./download_log.txt
+model_path: ./models/vosk-model-small-ru-0.22
+transcribe_python: /path/to/python
+venv_path: ./venv
+```
 
-pip install yt-dlp
+**secret_conf.yaml** — ключ DeepSeek (скопировать из примера):
 
-Или скачайте исполняемый файл с официального репозитория
-2. Скачайте скрипт
-bash
+```bash
+cp secret_conf.example.yaml secret_conf.yaml
+# открой и вставь реальный ключ
+```
 
-git clone https://github.com/yourusername/youtube-playlist-downloader.git
-cd youtube-playlist-downloader
+**prompts.yaml** — 4 промпта для LLM (готовые, можно менять).
 
-3. Настройте параметры в скрипте
+### 4. Cookies (для обхода 403)
 
-Откройте скрипт и измените настройки в верхней части файла:
-python
+YouTube может блокировать автоматические запросы (ошибка 403).
+Для обхода экспортируйте cookies из браузера в `data/cookies.txt`:
 
-INPUT_FILE = "playlists.txt"                    # файл со ссылками
-DOWNLOAD_ROOT = "./downloads"                   # корневая папка для скачиваний
+1. Установите расширение для экспорта cookies
+   (например, "Get cookies.txt LOCALLY" для Chrome/Firefox).
+2. Зайдите на youtube.com в авторизованном браузере.
+3. Экспортируйте cookies и сохраните в `data/cookies.txt`.
 
-# ========== НАСТРОЙКИ ПАУЗ (рандомные, в секундах) ==========
-PAUSE_BETWEEN_VIDEOS_MIN = 2      # мин. пауза между видео (секунды)
-PAUSE_BETWEEN_VIDEOS_MAX = 5      # макс. пауза между видео (секунды)
-PAUSE_BETWEEN_PLAYLISTS_MIN = 3   # мин. пауза между плейлистами/каналами (секунды)
-PAUSE_BETWEEN_PLAYLISTS_MAX = 8   # макс. пауза между плейлистами/каналами (секунды)
+Если cookies не нужны или не помогают — в CLI есть флаг `--no-cookies`.
 
-Использование
-1. Создайте файл playlists.txt со ссылками
+### 5. Запуск
 
-Поддерживаются:
-Тип	Формат	Пример
-Плейлист	
-https://youtube.com/watch?v=...&list=...	
+```bash
+./run.sh          # GUI
+./run.sh cli      # CLI
+```
+
+## Конфигурация
+
+### config.yaml
+
+| Ключ | Что |
+|---|---|
+| download_root | Куда скачивать видео/аудио |
+| input_file | Файл со ссылками (data/playlists.txt) |
+| log_file | Лог (download_log.txt в корне) |
+| model_path | Путь к модели Vosk |
+| transcribe_python | Python для transcribe/punctuate (если отдельный venv) |
+| venv_path | Путь к venv проекта (используется в run.sh) |
+
+### prompts.yaml
+
+| Имя | Описание |
+|---|---|
+| summary | Краткое содержание + темы + текст |
+| summary_short | Только краткое содержание (3 предложения) |
+| structured | Детальный анализ: темы, тезисы, цитаты |
+| translate_en | Перевод на английский |
+
+### secret_conf.yaml
+
+Секретный файл (в .gitignore):
+
+```yaml
+deepseek_api_key: sk-...
+base_url: https://api.deepseek.com
+```
+
+## Структура проекта
+
+```text
+youtube-playlist-downloader/
+├── src/                      — исходный код
+│   ├── gui.py                — Tkinter GUI
+│   ├── ytdl.py               — скачивание с YouTube
+│   ├── transcribe.py         — Vosk ASR
+│   ├── punctuate.py          — пунктуация
+│   └── summarize.py          — DeepSeek LLM
+├── scripts/                  — shell-обёртки
+│   ├── run_gui.sh
+│   └── run_cli.sh
+├── data/                     — данные (gitignored)
+│   ├── Video_Youtube/        — скачанное
+│   ├── playlists.txt         — список ссылок
+│   └── cookies.txt           — cookies
+├── models/                   — модель Vosk (gitignored, ~88 МБ)
+│   └── vosk-model-small-ru-0.22/
+├── legacy/                   — старый код
+├── docs/images/              — скриншоты
+├── config.yaml               — конфиг
+├── prompts.yaml              — промпты для LLM
+├── secret_conf.example.yaml  — шаблон секретов
+├── requirements.txt          — зависимости
+├── run.sh                    — запуск (GUI или CLI)
+└── README.md
+```
+
+## Как это работает
+
+```text
+YouTube ссылка  (или файл)
+        ↓
+  [ ytdl.py ]               — скачивание mp3 / mp4
+        ↓
+  [ transcribe.py ]         — Vosk: mp3 → txt
+        ↓
+  [ punctuate.py ]          — пунктуация: txt → _punctuated.txt
+        ↓
+  [ summarize.py ]          — DeepSeek: _punctuated.txt → _summary.md
+```
+
+Артефакты на каждое видео:
+
+- `.mp3` — аудио.
+- `.txt` — транскрипция (Vosk).
+- `_punctuated.txt` — пунктуация.
+- `_summary.md` — LLM-обработка.
+
+## Формат playlists.txt
+
+Поддерживаются маркеры:
+
+| Маркер | Действие |
+|---|---|
+| `[audio]` | Скачать только аудио (MP3) |
+| `[top=N]` | N самых популярных видео с канала |
+| `[new=N]` | N самых новых видео с канала |
+| `#` в начале | Комментарий, строка игнорируется |
+
+Пример:
+
+```text
+# Плейлист
 https://www.youtube.com/watch?v=Fp_XNuGw_-A&list=PLDEqjJUrvNYx90e5ahb3GdjAVL-20dM7W
 
-Отдельное видео	
-https://youtube.com/watch?v=...	https://www.youtube.com/watch?v=5SUV6XIM2xI
-
-Канал (топ)	
-[top=10] https://www.youtube.com/@SlavZashita
-
-Канал (новые)	
-[new=5] https://www.youtube.com/@SlavZashita
-
-2. Маркеры
-Маркер	Действие
-[audio]	Скачать только аудио (MP3)
-[top=N]	Скачать N самых популярных видео с канала
-[new=N]	Скачать N самых новых видео с канала
-# в начале строки	Строка игнорируется (комментарий)
-
-3. Пример файла playlists.txt
-text
-
-# Это комментарий, скрипт его пропустит
-
-# Плейлист с видео
-1) Защита Грюнфельда. Схемы, планы.
-https://www.youtube.com/watch?v=Fp_XNuGw_-A&list=PLDEqjJUrvNYx90e5ahb3GdjAVL-20dM7W
-
-# Аудио версия того же плейлиста
-[audio] 1) Лекция. Атака Фишера. (только звук)
-https://www.youtube.com/watch?v=-NirgiBab_4&list=PLDEqjJUrvNYxDh_fUZsQNZgZRBclx_rz4
-
-# Топ-10 популярных видео с канала
-[top=10] https://www.youtube.com/@Sergey_chess
-
-# Отдельное аудио (без видео)
+# Только аудио
 [audio] https://www.youtube.com/watch?v=cb7Pc4g_d3Y
 
-4. Запустите скрипт
+# Топ-10 с канала
+[top=10] https://www.youtube.com/@Sergey_chess
+```
 
-python 05_youtube_downloader.py
+## Требования
 
-Структура выходных папок
-text
+- Python 3.10+
+- yt-dlp — скачивание
+- ffmpeg — конвертация mp3 → wav (для Vosk)
+- Vosk-модель vosk-model-small-ru-0.22 (~88 МБ)
+  — https://alphacephei.com/vosk/models
+- PyYAML — для config.yaml и prompts.yaml
+- DeepSeek API-ключ — для LLM-обработки
+- vosk, punctuators — для транскрибации и пунктуации
+  (отдельный venv допустим, путь — в config.yaml)
 
-downloads/
-    Название канала /
-        Название плейлиста 1 /
-            видео1.mp4
-            видео2.mp4
-        Название плейлиста 2 /
-            видео1.mp4
-        (популярные 10) /
-            видео1.mp4
-            видео2.mp4
-        (новые 5) /
-            видео1.mp4
-            видео2.mp4
-        одиночное_видео.mp4
-        одиночное_аудио.mp3
+### Установка ffmpeg
 
-Логирование
-
-Все действия записываются в download_log.txt с временными метками:
-text
-
-[2026-04-12 13:12:53] 🚀 ЗАПУСК СКРИПТА
-[2026-04-12 13:12:53] 📋 Найдено ссылок: 2
-[2026-04-12 13:13:00]   📁 Шахматные идеи с Сергеем Кривенко / (популярные 3)
-[2026-04-12 13:13:52]   ✓ Канал обработан
-
-Настройки
-
-В верхней части скрипта можно изменить:
-python
-
-# Паузы (рандомные) в секундах 
-PAUSE_BETWEEN_VIDEOS_MIN = 2      # между видео в плейлисте
-PAUSE_BETWEEN_VIDEOS_MAX = 5
-PAUSE_BETWEEN_PLAYLISTS_MIN = 3   # между плейлистами/каналами
-PAUSE_BETWEEN_PLAYLISTS_MAX = 8
-
-# Аудио настройки
-AUDIO_FORMAT = "mp3"
-AUDIO_QUALITY = "192"  # kbps
-
-# Пути
-DOWNLOAD_ROOT = "./downloads"
-INPUT_FILE = "playlists.txt"
-
-Требования
-
-    Python 3.6+
-
-    yt-dlp
-
-    ffmpeg (для слияния видео/аудио и конвертации в MP3)
-
-Установка ffmpeg
-
-Ubuntu/Debian:
-
+```bash
 sudo apt install ffmpeg
+```
 
-Windows: Скачайте с ffmpeg.org и добавьте в PATH
-⚠️ Важное замечание
+### Скачивание модели Vosk
 
-Данный скрипт предназначен только для личного использования и скачивания публичного контента, к которому у вас есть законный доступ.
+```bash
+wget https://alphacephei.com/vosk/models/vosk-model-small-ru-0.22.zip
+unzip vosk-model-small-ru-0.22.zip -d models/
+```
 
-    Не используйте скрипт для нарушения авторских прав
+## Лицензия
 
-    Не распространяйте скачанные видео
+MIT
 
-    Убедитесь, что вы имеете право скачивать контент в вашей юрисдикции
+## Благодарности
 
-Автор не несёт ответственности за использование скрипта в незаконных целях.
-Лицензия
+- yt-dlp (https://github.com/yt-dlp/yt-dlp) — скачивание с YouTube
+- Vosk (https://alphacephei.com/vosk/) — распознавание речи
+- punctuators — пунктуация
+- DeepSeek (https://www.deepseek.com/) — LLM-обработка
 
-MIT License
-Благодарности
+## Примечание
 
-    yt-dlp — за отличный инструмент
-
+Скачивайте только публичный контент, к которому у вас есть
+законный доступ. Не используйте для нарушения авторских прав.
