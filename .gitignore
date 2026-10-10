@@ -23,6 +23,9 @@ run_log.txt
 01_____________________Video_Youtube
 
 cookies.txt
+
+# Секреты (не коммитить)
+secret_conf.yaml
 # ai-coder / GUI
 Video_Youtube/
 gui_input.txt

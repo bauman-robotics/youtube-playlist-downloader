@@ -24,6 +24,11 @@ import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox, ttk
 
+try:
+    import yaml
+except ImportError:  # pragma: no cover
+    yaml = None
+
 
 class YtdlApp(tk.Tk):
     """Графический интерфейс для скачивания через ytdl.py"""
@@ -46,6 +51,9 @@ class YtdlApp(tk.Tk):
         self.input_file = self.project_root / "data" / "gui_input.txt"
         self.config_file = self.project_root / "config.yaml"
         self.download_dir = self._read_download_root()
+        self.prompts_file = self.project_root / "prompts.yaml"
+        self.prompts = self._load_prompts()
+        self.llm_var = tk.StringVar(value="Не обрабатывать")
 
         # --- тёмная тема ---
         self._setup_dark_theme()
@@ -168,6 +176,18 @@ class YtdlApp(tk.Tk):
         )
         self.transcribe_check.pack(side="left", padx=(20, 0))
 
+        ttk.Label(opts, text="Обработка LLM:").pack(side="left", padx=(20, 4))
+        self.llm_combo = ttk.Combobox(
+            opts,
+            textvariable=self.llm_var,
+            values=self._prompt_labels(),
+            state="readonly",
+            width=28,
+        )
+        self.llm_combo.pack(side="left")
+        if self._prompt_labels():
+            self.llm_combo.current(0)
+
         ttk.Label(opts, text="количество:").pack(side="left", padx=(20, 4))
         self.count_var = tk.IntVar(value=0)
         self.count_spin = ttk.Spinbox(
@@ -250,6 +270,50 @@ class YtdlApp(tk.Tk):
         except Exception:
             pass
         return default
+
+    def _load_prompts(self):
+        """Динамически загружает prompts.yaml.
+
+        Возвращает словарь {name: {label, model, system, user}}.
+        Если файла нет или он некорректен — пустой словарь.
+        """
+        if yaml is None:
+            return {}
+        try:
+            data = yaml.safe_load(
+                self.prompts_file.read_text(encoding="utf-8")
+            )
+        except Exception:
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        prompts = data.get("prompts")
+        if not isinstance(prompts, dict):
+            return {}
+        return prompts
+
+    def _prompt_labels(self):
+        """Список значений для Combobox (первый — «Не обрабатывать»)"""
+        labels = ["Не обрабатывать"]
+        for info in self.prompts.values():
+            if isinstance(info, dict):
+                label = info.get("label")
+                if label and label not in labels:
+                    labels.append(label)
+        return labels
+
+    def _selected_prompt_name(self):
+        """Возвращает имя промпта (ключ prompts.yaml) по выбранному label.
+
+        Для «Не обрабатывать» возвращает None.
+        """
+        label = self.llm_var.get()
+        if label == "Не обрабатывать":
+            return None
+        for name, info in self.prompts.items():
+            if isinstance(info, dict) and info.get("label") == label:
+                return name
+        return None
 
     def _append_log(self, text):
         """Добавляет текст в лог и прокручивает вниз"""
@@ -411,6 +475,16 @@ class YtdlApp(tk.Tk):
             if self._launch_stage(self._build_punctuate_cmd(), "punctuate"):
                 return
 
+        # после успешной пунктуации запускаем обработку LLM
+        if self.stage == "punctuate" and rc == 0:
+            prompt_name = self._selected_prompt_name()
+            if prompt_name:
+                self._append_log("[GUI] Запускаю обработку LLM...\n")
+                if self._launch_stage(
+                    self._build_summarize_cmd(prompt_name), "summarize"
+                ):
+                    return
+
         self.stage = None
         self._set_running(False)
 
@@ -456,6 +530,20 @@ class YtdlApp(tk.Tk):
         script = self.script_dir / "punctuate.py"
         py = self._read_transcribe_python()
         return [py, "-u", str(script), "-d", str(self.download_dir)]
+
+    def _build_summarize_cmd(self, prompt_name):
+        """Команда запуска summarize.py с выбранным промптом"""
+        script = self.script_dir / "summarize.py"
+        py = self._read_transcribe_python()
+        return [
+            py,
+            "-u",
+            str(script),
+            "-d",
+            str(self.download_dir),
+            "--prompt",
+            prompt_name,
+        ]
 
     def _set_running(self, running):
         """Переключает состояние элементов управления"""
