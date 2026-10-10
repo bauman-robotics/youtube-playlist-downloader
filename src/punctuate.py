@@ -171,7 +171,8 @@ def should_ignore_path(path, ignore_dirs, ignore_files, ignore_extensions):
     return False
 
 def find_text_files(directory, extension='.txt', recursive=True, 
-                    ignore_dirs=None, ignore_files=None, ignore_extensions=None):
+                    ignore_dirs=None, ignore_files=None, ignore_extensions=None,
+                    skip_suffix='_punctuated'):
     """
     Находит все текстовые файлы в директории, исключая служебные папки и файлы
     
@@ -209,7 +210,7 @@ def find_text_files(directory, extension='.txt', recursive=True,
                 if should_ignore_path(file_path, ignore_dirs, ignore_files, ignore_extensions):
                     continue
                 
-                if filename.endswith(extension):
+                if filename.endswith(extension) and not filename.endswith(skip_suffix + extension):
                     files.append(file_path)
     else:
         # Только текущая директория
@@ -217,6 +218,9 @@ def find_text_files(directory, extension='.txt', recursive=True,
             if item.is_file() and item.suffix == extension:
                 # Проверяем, не игнорируется ли файл
                 if should_ignore_path(item, ignore_dirs, ignore_files, ignore_extensions):
+                    continue
+                # Пропускаем уже пунктуированные файлы
+                if item.name.endswith(skip_suffix + extension):
                     continue
                 files.append(item)
     
@@ -364,7 +368,8 @@ def main():
         not args.no_recursive,
         ignore_dirs,
         ignore_files,
-        ignore_extensions
+        ignore_extensions,
+        skip_suffix=args.suffix,
     )
     
     if not files:

@@ -229,7 +229,7 @@ def find_input_files(directory):
     if not directory.is_dir():
         print_error(f"Не директория: {directory}")
         return []
-    return sorted(directory.glob(f"*{SUFFIX_INPUT}"))
+    return sorted(directory.rglob(f"*{SUFFIX_INPUT}"))
 
 
 def summarize_file(path, api_key, model, system, user_prompt):
