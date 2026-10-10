@@ -3,3 +3,4 @@ input_file: ./data/playlists.txt
 log_file: ./download_log.txt
 model_path: ./models/vosk-model-small-ru-0.22
 transcribe_python: /home/ypc/projects/05_Transcribe/venv/bin/python
+venv_path: ./venv
