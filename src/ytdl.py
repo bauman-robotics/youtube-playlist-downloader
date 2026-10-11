@@ -365,9 +365,10 @@ def download_single_video(video_url, download_path, filename, audio_mode, video_
     final_size_mb = 0
     final_speed_mb = 0
     download_success = False
+    final_path = None
     
     def progress_hook(d):
-        nonlocal last_update, last_line_len, final_size_mb, final_speed_mb, download_success
+        nonlocal last_update, last_line_len, final_size_mb, final_speed_mb, download_success, final_path
         
         if d['status'] == 'downloading':
             now = time.time()
@@ -396,6 +397,9 @@ def download_single_video(video_url, download_path, filename, audio_mode, video_
                     
         elif d['status'] == 'finished':
             download_success = True
+            finished_filename = d.get('filename')
+            if finished_filename:
+                final_path = str(Path(finished_filename).absolute())
             sys.stdout.write('\r' + ' ' * last_line_len + '\r')
             sys.stdout.flush()
             print("    ✅ Готово", flush=True)
@@ -419,9 +423,9 @@ def download_single_video(video_url, download_path, filename, audio_mode, video_
                 stats_str = f"{final_size_mb:.1f} MB"
             else:
                 stats_str = "статистика недоступна"
-            return True, stats_str
+            return True, stats_str, final_path
         else:
-            return False, None
+            return False, None, None
         
     except Exception as e:
         error_msg = str(e)
@@ -432,7 +436,7 @@ def download_single_video(video_url, download_path, filename, audio_mode, video_
             print(f"      3. Использовать VPN или изменить IP")
         else:
             print(f"\n    ❌ Ошибка: {error_msg[:200]}")
-        return False, None
+        return False, None, None
 
 def download_playlist(playlist_url, channel, playlist_title, audio_mode):
     """Скачивает плейлист (видео или аудио)"""
@@ -468,7 +472,7 @@ def download_playlist(playlist_url, channel, playlist_title, audio_mode):
             title = re.sub(r'[<>:"/\\|?*]', '_', title).strip()
             
             log_message(f"    ↓ [{idx}/{total}] {title[:50]}...", console=True)
-            success, stats = download_single_video(video_url, download_path, title, audio_mode)
+            success, stats, final_path = download_single_video(video_url, download_path, title, audio_mode)
             if not success:
                 log_message(f"    ⚠ Ошибка при скачивании", console=True)
             else:
@@ -518,7 +522,7 @@ def download_channel_videos(channel_url, channel_name, suffix, audio_mode, top_c
     
     for idx, (video_url, title) in enumerate(videos, 1):
         log_message(f"    ↓ [{idx}/{len(videos)}] {title[:50]}...", console=True)
-        success, stats = download_single_video(video_url, download_path, title, audio_mode)
+        success, stats, final_path = download_single_video(video_url, download_path, title, audio_mode)
         if not success:
             log_message(f"    ⚠ Ошибка при скачивании", console=True)
         else:
@@ -730,7 +734,7 @@ def main():
                     mode_str = "🎵 АУДИО (MP3)" if audio_mode else "🎬 ВИДЕО (MP4)"
                     log_message(f"  {mode_str}")
                     log_message(f"  📱 Shorts: {title[:60]}")
-                    success, stats = download_single_video(url, download_path, title, audio_mode)
+                    success, stats, final_path = download_single_video(url, download_path, title, audio_mode)
                     if success:
                         log_message(f"      ✅ {stats}", console=False)
                 
@@ -811,7 +815,7 @@ def main():
                         mode_str = "🎵 АУДИО (MP3)" if audio_mode else "🎬 ВИДЕО (MP4)"
                         log_message(f"  {mode_str}")
                         log_message(f"  🎬 {title[:60]}")
-                        success, stats = download_single_video(url, download_path, title, audio_mode)
+                        success, stats, final_path = download_single_video(url, download_path, title, audio_mode)
                         if success:
                             log_message(f"      ✅ {stats}", console=False)
                 
