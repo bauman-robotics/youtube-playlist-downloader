@@ -243,13 +243,16 @@ def summarize_file(path, api_key, model, system, user_prompt):
         print_warning(f"Файл пуст: {path.name}")
         return False
 
+    basename = path.name[:-len(".txt")]
+    output_path = path.with_name(f"{basename}{SUFFIX_OUTPUT}")
+    if output_path.exists():
+        print_warning(f"Пропускаем (уже есть): {output_path.name}")
+        return False
+
     print_info(f"Отправка в DeepSeek: {path.name} (модель: {model})")
     summary = call_deepseek(api_key, model, system, user_prompt, text)
     if summary is None:
         return False
-
-    basename = path.name[:-len(".txt")]
-    output_path = path.with_name(f"{basename}{SUFFIX_OUTPUT}")
     try:
         output_path.write_text(summary, encoding="utf-8")
     except Exception as e:
