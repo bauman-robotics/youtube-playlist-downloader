@@ -264,14 +264,16 @@ def get_channel_videos(channel_url, limit=None, sort_by="date"):
         # Сортируем
         if sort_by == "views":
             # По просмотрам (популярные)
-            entries.sort(key=lambda x: x.get("view_count", 0), reverse=True)
+            entries.sort(key=lambda x: (x.get("view_count") or 0), reverse=True)
         else:  # date
             # По дате (новые)
-            entries.sort(key=lambda x: x.get("upload_date", ""), reverse=True)
+            entries.sort(key=lambda x: (x.get("upload_date") or ""), reverse=True)
         
         # Ограничиваем количество
         if limit and limit > 0:
             entries = entries[:limit]
+        
+        entries = [e for e in entries if isinstance(e, dict) and e.get("id")]
         
         videos = []
         for entry in entries:
